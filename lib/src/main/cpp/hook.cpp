@@ -42,13 +42,30 @@ ssize_t myRead(int filedes, void *buf, size_t nbytes) {
     return read(filedes, buf, nbytes);
 }
 
+void printEnviron(char *tag) {
+    char **p = environ;
+    LOGI("char**ptr(%s)@%10p", tag, p);
+    if (nullptr == p) {
+        return;
+    }
+    while (*p) {
+        LOGD("%s: %s", tag, *p);
+        p++;
+    }
+}
+char *new_environ[] = {"Hello ", "World!", nullptr};
 static void hook(JNIEnv *env, jobject jObj) {
-//    add_hook("libcronet.72.0.3626.0.so", "recv", ptr, nullptr);
-//    add_hook("libcronet.72.0.3626.0.so", "recv", (void *) (myRecv), nullptr);
-//    add_hook("libcronet.72.0.3626.0.so", "socket", (void *) (mySocket), nullptr);
+    add_hook("libcronet.72.0.3626.0.so", "recv", (void *) (myRecv), nullptr);
+    add_hook("libcronet.72.0.3626.0.so", "socket", (void *) (mySocket), nullptr);
     add_hook(nullptr, "accept", (void *) (myAccept), nullptr);
     add_hook(nullptr, "write", (void *) (myWrite), nullptr);
     add_hook(nullptr, "read", (void *) (myRead), nullptr);
+    // environ plt.dyn
+//    printEnviron("environ");
+//    char **new_env = new_environ;
+//    LOGI("new environ ptr->%10p", new_env);
+//    add_hook("libnh_plt.so", "environ", &new_env, nullptr);
+//    printEnviron("new environ");
 }
 
 // 回调函数 在这里面注册函数

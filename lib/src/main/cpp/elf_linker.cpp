@@ -464,7 +464,6 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
 soinfo::soinfo(const char *name) {
     memset(this, 0, sizeof(*this));
     this->so_name = (ElfW(Addr)) name;
-    this->flags_ = FLAG_NEW_SOINFO;
 }
 
 
@@ -532,7 +531,7 @@ static bool verify_android_elf(struct soinfo *elf) {
 
 static int callback(struct dl_phdr_info *info, size_t size, void *data) {
     LOGD ("name=%s bias=%10p (%d segments) size=%d\n", info->dlpi_name, info->dlpi_addr, info->dlpi_phnum, size);
-    if (0==endWith("libnh_plt.so", info->dlpi_name)) {
+    if (0 == endWith("libnh_plt.so", info->dlpi_name)) {
         return 0;
     }
     lookup_result *res = static_cast<lookup_result *>(data);
