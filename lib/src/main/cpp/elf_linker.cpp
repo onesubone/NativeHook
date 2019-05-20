@@ -463,9 +463,7 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
 
 soinfo::soinfo(const char *name) {
     memset(this, 0, sizeof(*this));
-    this->so_name = (ElfW(Addr)) name;
 }
-
 
 /**
  * 从所有的program header中查找.dynamic segment。一个so中只能有一个.dynamic segment, 找到指定的ElfW(Phdr)地址
@@ -485,12 +483,58 @@ static inline const ElfW(Phdr) *lookup_dynamic_segment(struct dl_phdr_info *info
     return nullptr;
 }
 
+extern "C" segment_attr *lookup_segment_attr(soinfo *elf_ptr, ElfW(Addr) addr) {
+    for (int i = 0; i < elf_ptr->segment_attr_count; ++i) {
+        segment_attr *attr = elf_ptr->segment_attr_list[i];
+        if (!attr) continue;
+        if (attr->in_this_segment(addr)) {
+            return attr;
+        }
+    }
+    return nullptr;
+}
+
+soinfo *read_from_dl_phdr_info(struct dl_phdr_info *info) {
+    const ElfW(Phdr) *dynamic_segment = lookup_dynamic_segment(info);
+    LOGD("library PHT(program header table) address=%10p", dynamic_segment);
+    if (!dynamic_segment) {
+        return nullptr;
+    }
+    ElfW(Dyn) *dynamic_ptr = (ElfW(Dyn) *) (info->dlpi_addr + dynamic_segment->p_paddr);
+    int count = dynamic_segment->p_memsz / sizeof(ElfW(Dyn));
+    ElfW(Dyn) *dynamic_end_ptr = dynamic_ptr + count;
+    LOGD(".dynamic segment address range:[%10p-%10p], count %u", dynamic_ptr, dynamic_end_ptr, count);
+    if (!dynamic_ptr) {
+        return nullptr;
+    }
+    soinfo *elf_ptr = new soinfo(info->dlpi_name);
+    memset(elf_ptr, '\0', sizeof(soinfo));
+    if (!elf_ptr->initialize(info->dlpi_name, info->dlpi_addr, dynamic_ptr, dynamic_end_ptr)) {
+        return nullptr;
+    }
+    typedef segment_attr *SAP;
+    SAP *segment_attr_list = new SAP[info->dlpi_phnum];
+    for (int i = 0; i < info->dlpi_phnum; i++) {
+        const ElfW(Phdr) *segment = info->dlpi_phdr + i;
+        if (!segment) continue;
+        SAP attr = new segment_attr;
+        attr->start = info->dlpi_addr + segment->p_vaddr;
+        attr->end = attr->start + segment->p_memsz - 1;
+        attr->flag = segment->p_flags;
+        segment_attr_list[i] = attr;
+        LOGI("%d [%10p-%10p],p_flags=%d", segment->p_type, attr->start, attr->end, segment->p_flags);
+    }
+    elf_ptr->segment_attr_list = segment_attr_list;
+    elf_ptr->segment_attr_count = info->dlpi_phnum;
+    print_android_elf(elf_ptr);
+    return elf_ptr;
+}
 
 void print_android_elf(soinfo *si) {
     LOGI("----------------%s", "--------------------------------------------------------------------------------");
     LOGI("----so name %s", (char *) si->strtab_ + si->so_name);
-    LOGI("----bias addr %9p", si->bias_addr);
-    LOGI("----dynamic addr %9p", si->dynamic_);
+    LOGI("----bias addr %10p", si->bias_addr);
+    LOGI("----dynamic addr %10p", si->dynamic_);
     LOGI("----rel.plt count %u", si->plt_rel_count_);
     LOGI("----rel count %u", si->rel_count_);
     LOGI("----rela count %u", si->rela_count_);
@@ -503,71 +547,6 @@ void print_android_elf(soinfo *si) {
     return;
 }
 
-static soinfo *read_from_dl_phdr_info(struct dl_phdr_info *info) {
-    const ElfW(Phdr) *dynamic_segment = lookup_dynamic_segment(info);
-    LOGI("library PHT(program header table) address=%10p", dynamic_segment);
-    if (!dynamic_segment) {
-        return nullptr;
-    }
-    ElfW(Dyn) *dynamic_ptr = (ElfW(Dyn) *) (info->dlpi_addr + dynamic_segment->p_paddr);
-    int count = dynamic_segment->p_memsz / sizeof(ElfW(Dyn));
-    ElfW(Dyn) *dynamic_end_ptr = dynamic_ptr + count;
-    LOGI("dynamic segment address range:[%10p-%10p], count %u", dynamic_ptr, dynamic_end_ptr, count);
-    if (!dynamic_ptr) {
-        return nullptr;
-    }
-    soinfo *elf_ptr = new soinfo(info->dlpi_name);
-    memset(elf_ptr, '\0', sizeof(soinfo));
-    if (!elf_ptr->initialize(info->dlpi_name, info->dlpi_addr, dynamic_ptr, dynamic_end_ptr)) {
-        return nullptr;
-    }
-    print_android_elf(elf_ptr);
-    return elf_ptr;
-}
-
 static bool verify_android_elf(struct soinfo *elf) {
     return true;
 }
-
-static int callback(struct dl_phdr_info *info, size_t size, void *data) {
-    LOGD ("name=%s bias=%10p (%d segments) size=%d\n", info->dlpi_name, info->dlpi_addr, info->dlpi_phnum, size);
-    if (0 == endWith("libnh_plt.so", info->dlpi_name)) {
-        return 0;
-    }
-    lookup_result *res = static_cast<lookup_result *>(data);
-    if (!res) {
-        LOGE("%s", "dl_iterate_phdr callback param(data) null");
-        return 0;
-    }
-    auto add_result = [&]() {
-        soinfo *elf = read_from_dl_phdr_info(info);
-        if (!elf) {
-            LOGE("read soinfo from dl_phdr_info failed %s", info->dlpi_name);
-            return;
-        }
-        res->success = true;
-        res->result.push_back(elf);
-    };
-    if (res->lookup_so_name) {
-        if (info->dlpi_name && (strcmp(res->lookup_so_name, info->dlpi_name) == 0
-                                || endWith(res->lookup_so_name, info->dlpi_name) == 0)) {
-            add_result();
-        }
-    } else {
-        add_result();
-    }
-    return 0;
-}
-
-
-void lookup_soinfo(const char *so_name, lookup_result *result) {
-    LOGI("%s", "Start lookup ");
-    result->lookup_so_name = so_name;
-    if (dl_iterate_phdr) {
-        dl_iterate_phdr(callback, (void *) result);
-    }
-    if (!result->success) {
-        // TODO
-    }
-}
-

@@ -1,7 +1,7 @@
 //
 // Created by yananh on 2019/4/30.
 //
-#include "elf_hook.h"
+#include "elf_dl_hook.h"
 #include "elf_linker.h"
 #include <vector>
 #include <sys/mman.h>
@@ -12,32 +12,37 @@
 #include <string>
 #include <unistd.h>
 
-static int do_hook(ElfW(Addr) addr, void *newValue, void **old_addr_ptr) {
+static int do_hook(soinfo *si, const char *so_name, ElfW(Addr) addr, void *newValue, void **old_addr_ptr) {
     void **relocate_ptr = (void **) addr;
     if (*relocate_ptr == newValue) {
         LOGW("do hook same address %10p, do nothing!", newValue);
         return 0;
     }
     if (old_addr_ptr) *old_addr_ptr = *relocate_ptr;
-//    LOGI("do hook old address %10p, *addr=%10p,**addr=%10p", addr, *relocate_ptr, **(void ***)relocate_ptr);
-
     size_t pageSize = (size_t) sysconf(_SC_PAGESIZE);
     LOGD("_SC_PAGESIZE %u", pageSize);
     uintptr_t originPtr = (uintptr_t) (addr);
     void *aligned_pointer = (void *) (originPtr & ~(pageSize - 1));
-    mprotect(aligned_pointer, pageSize, PROT_WRITE | PROT_READ);
-//    *((uintptr_t *) addr) = reinterpret_cast<uintptr_t>(newValue);
-    LOGI("hook from %10p to %10p", *relocate_ptr, newValue);
-    *relocate_ptr = newValue;
-    __builtin___clear_cache((char *) aligned_pointer, ((char *) aligned_pointer) + pageSize);
+    segment_attr *attr = lookup_segment_attr(si, (ElfW(Addr)) (aligned_pointer));
+    if (attr) {
+        mprotect(aligned_pointer, pageSize, PROT_WRITE | PROT_READ);
+        LOGI("do_hoo: %s@%10p Value[%10p -> %10p]，flag=%d", so_name, addr, *relocate_ptr, newValue, attr->flag);
+        *relocate_ptr = newValue;
+        __builtin___clear_cache((char *) aligned_pointer, ((char *) aligned_pointer) + pageSize);
+        mprotect(aligned_pointer, pageSize, attr->flag);
+    } else {
+        mprotect(aligned_pointer, pageSize, PROT_WRITE | PROT_READ);
+        LOGI("do_hoo: %s@%10p Value[%10p -> %10p]", so_name, addr, *relocate_ptr, newValue);
+        *relocate_ptr = newValue;
+        __builtin___clear_cache((char *) aligned_pointer, ((char *) aligned_pointer) + pageSize);
+    }
     return 0;
 }
-
 
 static int hook_spec(soinfo *si, const char *symbol, void *newValue, void **old_addr_ptr) throw(std::string) {
     uint32_t idx = 0;
     ElfW(Sym) *sym = si->lookup_symbol(symbol, &idx);
-    LOGD("find_symbol_by_name %s idx: %d", symbol, idx);
+    LOGI("find_symbol_by_name %s@%s idx: %d", symbol, si->strtab_ + si->so_name, idx);
 
     if (!sym && !si->is_gnu_hash()) { //
         // GNU hash table doesn't contain relocation symbols.
@@ -68,7 +73,7 @@ static int hook_spec(soinfo *si, const char *symbol, void *newValue, void **old_
                     throw std::string("hook_and_replace: relocate offset less than 0!");
                 }
                 ElfW(Addr) reloc = rel_plt->r_offset + si->bias_addr; // r_offset->重定位入口偏移;
-                return do_hook(reloc, newValue, old_addr_ptr);
+                return do_hook(si, si->strtab_ + si->so_name, reloc, newValue, old_addr_ptr);
             } else {
                 LOGW("rel(a).plt idx %u Expected R_ARM_JUMP_SLOT, found %u", rel_plt, ELF_R_TYPE(rel_plt->r_info));
                 throw std::string("hook_and_replace: only support R_ARM_JUMP_SLOT type!Plz check mode");
@@ -96,7 +101,7 @@ static int hook_spec(soinfo *si, const char *symbol, void *newValue, void **old_
                     throw std::string("hook_and_replace: relocate offset less than 0!");
                 }
                 ElfW(Addr) reloc = rel->r_offset + si->bias_addr; // r_offset->重定位入口偏移;
-                return do_hook(reloc, newValue, old_addr_ptr);
+                return do_hook(si, si->strtab_ + si->so_name, reloc, newValue, old_addr_ptr);
             } else {
                 LOGW("Expected R_ARM_GLOB_DAT|R_ARM_ABS32, found 0x%X", ELF_R_SYM(rel->r_info));
                 throw std::string("hook_and_replace:only support R_ARM_GLOB_DAT&R_ARM_ABS32 type!Plz check mode");
@@ -141,16 +146,56 @@ static int hook_spec(soinfo *si, const char *symbol, void *newValue, void **old_
 //    return 0;
 }
 
-int add_hook(const char *soname, const char *symbol, void *newValue, void **old_addr_ptr) throw(std::string) {
-    struct lookup_result *result = new lookup_result();
-    lookup_soinfo(soname, result);
-    if (!result->success) {
-        LOGE("%s", "");
-        return -1;
+extern "C" int
+dl_iterate_phdr(int (*__callback)(struct dl_phdr_info *, size_t, void *), void *__data)__attribute__ ((weak));
+
+static std::vector<hook_symbol *> *filter_hook_symbols(const char *so_name_or_path, std::vector<hook_symbol *> *all) {
+    if (!so_name_or_path || 0 == endWith("linker", so_name_or_path) ||
+        0 == endWith("linker.so", so_name_or_path))
+        return nullptr;
+
+    std::vector<hook_symbol *> *res = new std::vector<hook_symbol *>;
+    for (std::vector<hook_symbol *>::iterator itr = all->begin(); itr != all->end(); ++itr) {
+        hook_symbol *entry = *itr;
+        if (!entry) continue;
+        if (!entry->so_name) {
+            if (0 == endWith("libnh_plt.so", so_name_or_path)) {
+                continue;
+            }
+            res->push_back(entry);
+            continue;
+        }
+        if (strcmp(entry->so_name, so_name_or_path) == 0 || endWith(entry->so_name, so_name_or_path) == 0) {
+            res->push_back(entry);
+        }
     }
-    for (auto itor = result->result.begin(); itor != result->result.end(); ++itor) {
-        // 输出毫无意义
-        hook_spec(*itor, symbol, newValue, old_addr_ptr);
+    return res;
+}
+
+static int callback(struct dl_phdr_info *info, size_t size, void *data) {
+    LOGD ("so name=%s@%10p (%d segments) size=%d\n", info->dlpi_name, info->dlpi_addr, info->dlpi_phnum, size);
+    std::vector<hook_symbol *> *all = (std::vector<hook_symbol *> *) (data);
+    if (!all || all->empty()) {
+        LOGE("%s", "dl_iterate_phdr callback param(data) null");
+        return 0;
+    }
+    // 所有命中本so的需要Hook的符号
+    std::vector<hook_symbol *> *hook_symbols = filter_hook_symbols(info->dlpi_name, all);
+    if (!hook_symbols || hook_symbols->empty()) return 0;
+    soinfo *si = read_from_dl_phdr_info(info);
+    if (!si) {
+        LOGE("read soinfo from dl_phdr_info failed %s", info->dlpi_name);
+        return 0;
+    }
+    for (std::vector<hook_symbol *>::iterator itr = hook_symbols->begin(); itr != hook_symbols->end(); ++itr) {
+        hook_spec(si, (*itr)->symbol_name, (*itr)->new_value, nullptr);
+    }
+    return 0;
+}
+
+int add_hook(std::vector<hook_symbol *> *all) {
+    if (dl_iterate_phdr) {
+        dl_iterate_phdr(callback, all);
     }
     return 0;
 }

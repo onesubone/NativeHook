@@ -1,6 +1,15 @@
 package com.eap.nh.lib;
 
 public class NativeHook {
+    static {
+        System.loadLibrary("nh_plt");
+    }
+
+    public static void init() {
+    }
+
+    public static native void printLeakedMem(String s);
+
     /**
      * 通过符号表查找对应的地址，并将制定的变量替换为并制定的符号(可能是函数指针或者变量的指针等)，将native的变量指向的内容替换为目标变量/方法
      *

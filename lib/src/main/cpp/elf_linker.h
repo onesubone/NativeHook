@@ -22,7 +22,6 @@
 #define HOOK_ERR -1
 #define LOOK_UP_DYNAMIC_SEGMENT_ERR -2
 
-
 using namespace std;
 
 typedef void (*linker_function_t)();
@@ -42,6 +41,22 @@ typedef struct {
     } d_un;
 } _Elf64_Dyn;
 typedef ElfW(Dyn) _DYN;
+
+typedef struct {
+    ElfW(Addr) dlpi_addr; // so加载的起始偏移地址
+    const char *dlpi_name; // so name
+    const ElfW(Phdr) *dlpi_phdr; // so program header table (PHT)
+    ElfW(Half) dlpi_phnum; // count of program header table (PHT)
+} _dl_phdr_info;
+
+struct segment_attr {
+    ElfW(Addr) start;
+    ElfW(Addr) end;
+    ElfW(Word) flag;
+    bool in_this_segment(ElfW(Addr) addr) {
+        return addr >= start && addr <= end;
+    }
+};
 
 // Same as in DT_HASH, symbols are put in one of nbuckets buckets depending on their hashes.
 // To be specific, each symbol should be placed into hash % nbuckets bucket.
@@ -130,15 +145,13 @@ public:
     ElfW(Sym) *gnu_lookup(const char *symbol_name, uint32_t *idx);
 
     ElfW(Sym) *lookup_symbol(const char *symbol_name, uint32_t *idx);
+
+    segment_attr **segment_attr_list;
+    uint32_t segment_attr_count;
 };
 
-
-struct lookup_result {
-    const char *lookup_so_name;
-    std::vector<soinfo *> result;
-    bool success = false;
-};
-
+extern "C" soinfo *read_from_dl_phdr_info(struct dl_phdr_info *info);
 extern "C" void print_android_elf(soinfo *si);
-extern "C" void lookup_soinfo(const char *so_name, lookup_result *result);
+extern "C" segment_attr *lookup_segment_attr(soinfo *elf_ptr, ElfW(Addr) addr);
+//extern "C" void lookup_soinfo(const char *so_name, lookup_result *result);
 #endif //RUBICK_ELF_PARSER_H

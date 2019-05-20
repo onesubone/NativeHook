@@ -19,7 +19,7 @@ add_library( # Sets the name of the library.
              # Provides a relative path to your source file(s).
              src/main/cpp/jni_loader.cpp
              src/main/cpp/hook.cpp
-             src/main/cpp/elf_hook.cpp
+             src/main/cpp/elf_dl_hook.cpp
              src/main/cpp/elf_linker.cpp)
 
 # Searches for a specified prebuilt library and stores the path as a
