@@ -22,6 +22,11 @@
 #define HOOK_ERR -1
 #define LOOK_UP_DYNAMIC_SEGMENT_ERR -2
 
+// Android uses RELA for aarch64 and x86_64. mips64 still uses REL.
+#if defined(__aarch64__) || defined(__x86_64__)
+#define USE_RELA 1
+#endif
+
 using namespace std;
 
 typedef void (*linker_function_t)();

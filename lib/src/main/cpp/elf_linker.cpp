@@ -244,7 +244,7 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
                 // the runtime linker to ignore these entries when the object is loaded with lazy binding enabled.
                 // This element requires the DT_PLTRELSZ and DT_PLTREL elements also be present.
 #if defined(USE_RELA)
-                result->plt_rela = reinterpret_cast<ElfW(Rela)*>(load_bias + d->d_un.d_ptr);
+                plt_rela_ = reinterpret_cast<ElfW(Rela)*>(load_bias + d->d_un.d_ptr);
 #else
                 plt_rel_ = reinterpret_cast<ElfW(Rel) *>(load_bias + d->d_un.d_ptr);
 #endif
@@ -253,7 +253,7 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
                 // The total size, in bytes, of the relocation entries associated with the procedure linkage table.
                 // See <href='https://docs.oracle.com/cd/E23824_01/html/819-0690/chapter6-1235.html#scrolltoc'>Procedure Linkage Table (Processor-Specific)</href>.
 #if defined(USE_RELA)
-                result->plt_rela_count = d->d_un.d_val / sizeof(ElfW(Rela));
+                plt_rela_count_ = d->d_un.d_val / sizeof(ElfW(Rela));
 #else
                 plt_rel_count_ = d->d_un.d_val / sizeof(ElfW(Rel));
 #endif
@@ -261,7 +261,7 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
             case DT_PLTGOT:
 #if defined(__mips__)
                 // Used by mips and mips64.
-                result->plt_got_ = reinterpret_cast<ElfW(Addr)**>(load_bias + d->d_un.d_ptr);
+                plt_got_ = reinterpret_cast<ElfW(Addr)**>(load_bias + d->d_un.d_ptr);
 #endif
                 // Ignore for other platforms... (because RTLD_LAZY is not supported)
                 break;
@@ -275,16 +275,16 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
                 break;
 #if defined(USE_RELA)
             case DT_RELA:
-                result->rela = reinterpret_cast<ElfW(Rela) *>(load_bias + d->d_un.d_ptr);
+                rela_ = reinterpret_cast<ElfW(Rela) *>(load_bias + d->d_un.d_ptr);
                 break;
             case DT_RELASZ:
-                result->rela_count = d->d_un.d_val / sizeof(ElfW(Rela));
+                rela_count_ = d->d_un.d_val / sizeof(ElfW(Rela));
                 break;
             case DT_ANDROID_RELA:
-                result->android_relocs = reinterpret_cast<uint8_t *>(load_bias + d->d_un.d_ptr);
+                android_relocs_ = reinterpret_cast<uint8_t *>(load_bias + d->d_un.d_ptr);
                 break;
             case DT_ANDROID_RELASZ:
-                result->android_relocs_size = d->d_un.d_val;
+                android_relocs_size_ = d->d_un.d_val;
                 break;
             case DT_ANDROID_REL:
                 LOGE("unsupported DT_ANDROID_REL in \"%s\"", name);

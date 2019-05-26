@@ -13,19 +13,8 @@
 #include <link.h>
 #include "jni_loader.h"
 #include <string>
-#include "elf_hook.h"
 
-///**
-// * 通过符号名称返回目标的索引
-// * @param soinfo 目标so
-// * @param symbol 符号名称
-// * @return 返回目标的索引
-// * @throw 如果不存在，则抛出异常
-// */
-//ElfW(Sym) *find_symbol_by_name(struct soinfo *elf, const char *symbol, uint32_t *idx);
 
-//int add_hook(const char *soname, const char *symbol, void *newValue, void **old_addr_ptr) throw(std::string);
-int add_hook(std::vector<hook_symbol *> *all);
 
 //------------------- 符号表 .symtab和.dynsym --------------------------------
 typedef struct {
@@ -81,7 +70,6 @@ typedef struct {
 #define _ELF32_ST_TYPE(i) ((i)&0xf)
 #define _ELF32_ST_INFO(b, t) (((b)<<4) + ((t)&0xf))
 
-
 //---------------- 重定位rel.plt/rel.dyn/rel.android/rela.plt/rela.dyn/rela.android -------------------------
 typedef struct {
     Elf32_Addr r_offset;    // 重定位入口偏移（受影响的存储单位的第一个字节的偏移或者虚拟地址）
@@ -97,5 +85,42 @@ typedef struct {
 #define _ELF32_R_SYM(x) ((x) >> 8) // 在符号表的索引，表示为第N和符号
 #define _ELF32_R_TYPE(x) ((x) & 0xff)
 
+
+#if defined(__arm__)
+#define _ELF_R_GENERIC_JUMP_SLOT R_ARM_JUMP_SLOT      //.rel.plt; .rela.plt
+#define _ELF_R_GENERIC_GLOB_DAT  R_ARM_GLOB_DAT       //.rel.dyn; .rela.dyn
+#define _ELF_R_GENERIC_ABS       R_ARM_ABS32          //.rel.dyn; .rela.dyn
+#elif defined(__aarch64__)
+#define _ELF_R_GENERIC_JUMP_SLOT R_AARCH64_JUMP_SLOT
+#define _ELF_R_GENERIC_GLOB_DAT  R_AARCH64_GLOB_DAT
+#define _ELF_R_GENERIC_ABS       R_AARCH64_ABS64
+#endif
+
+#if defined(__LP64__)
+#define ELF_R_SYM(info)  ELF64_R_SYM(info)
+#define ELF_R_TYPE(info) ELF64_R_TYPE(info)
+#else
+#define ELF_R_SYM(info)  ELF32_R_SYM(info)
+#define ELF_R_TYPE(info) ELF32_R_TYPE(info)
+#endif
+
+
+struct hook_symbol {
+    const char *so_name;
+    const char *symbol_name;
+    void *new_value;
+};
+
+///**
+// * 通过符号名称返回目标的索引
+// * @param soinfo 目标so
+// * @param symbol 符号名称
+// * @return 返回目标的索引
+// * @throw 如果不存在，则抛出异常
+// */
+//ElfW(Sym) *find_symbol_by_name(struct soinfo *elf, const char *symbol, uint32_t *idx);
+
+//int add_hook(const char *soname, const char *symbol, void *newValue, void **old_addr_ptr) throw(std::string);
+int add_hook(std::vector<hook_symbol *> *all);
 
 #endif //RUBICK_ELF_HOOK_H
