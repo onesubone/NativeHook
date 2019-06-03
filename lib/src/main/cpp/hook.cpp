@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 # include<pthread.h>
+#include "elf_hook.h"
 
 static pthread_rwlock_t rwlock;             //声明读写锁
 
@@ -208,8 +209,9 @@ void printEnviron(char *tag) {
 }
 char *new_environ[] = {"Hello ", "World!", nullptr};
 
-//std::map<void *, size_t> mem;
-#define NEW_HOOK_SYM(N, S, V) new hook_symbol{N, S, (void *) V}
+// ##是一个链接符号，用于把参数连在一起
+// #转化成一个字符串
+#define NEW_HOOK_SYM(N, S) new hook_symbol{N, #S, (void *)(my_##S)}
 //#define DEFINEHOOK( SONAME, NAME,) \
 //    typedef RET_TYPE (* NAME ## _t)ARGS; \
 //    RET_TYPE hook_ ## NAME ARGS
@@ -218,149 +220,149 @@ static void hook(JNIEnv *env, jobject jObj) {
     pthread_rwlock_init(&rwlock, nullptr);
 
     std::vector<hook_symbol *> sym_list;
-    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libutils.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libui.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libgui.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", "malloc", (void *) (my_malloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", "malloc", (void *) (my_malloc)));
+    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libutils.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libui.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libgui.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", malloc));
 
-    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libutils.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libui.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libgui.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", "realloc", (void *) (my_realloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", "realloc", (void *) (my_realloc)));
+    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libutils.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libui.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libgui.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", realloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", realloc));
 
-    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libutils.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libui.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libgui.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", "calloc", (void *) (my_calloc)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", "calloc", (void *) (my_calloc)));
+    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libutils.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libui.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libgui.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", calloc));
+    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", calloc));
 
-    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libutils.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libui.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libgui.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", "posix_memalign", (void *) (my_posix_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", "posix_memalign", (void *) (my_posix_memalign)));
+    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libutils.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libui.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libgui.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", posix_memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", posix_memalign));
 
-    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libutils.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libui.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libgui.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", "memalign", (void *) (my_memalign)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", "memalign", (void *) (my_memalign)));
+    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libutils.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libui.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libgui.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", memalign));
+    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", memalign));
 
-    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libutils.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libui.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libgui.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", "free", (void *) (my_free)));
-    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", "free", (void *) (my_free)));
+    sym_list.push_back(NEW_HOOK_SYM("libijkffmpeg.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libijkplayer.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libijksdl.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libGLES_mali.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libandroid_runtime.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libutils.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libwilhelm.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libnetdutils.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libcrypto.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libnativehelper.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libdebuggerd_client.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libui.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libgui.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libsensor.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libsqlite.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libziparchive.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libhardware.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libselinux.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libmedia.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libicuuc.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libjpeg.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", free));
+    sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", free));
 
     add_hook(&sym_list);
 }
@@ -375,8 +377,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     }
     assert(env != NULL);
     hook(env, nullptr);
-    registerMethod(env, "com/eap/nh/lib/NativeHook", "printLeakedMem", "(Ljava/lang/String;)V",
-                   (void *) (print_leaked_mem));
+//    registerMethod(env, "com/eap/nh/lib/NativeHook", "printLeakedMem", "(Ljava/lang/String;)V",
+//                   (void *) (print_leaked_mem));
 //    registerMethod(env, "com/eap/nh/lib/NativeHook", "printDynamicLib", "(Ljava/lang/String;)V", (void *) (printDynamicLib));
     //返回jni 的版本
     return JNI_VERSION_1_6;

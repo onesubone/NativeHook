@@ -13,7 +13,7 @@
 #include <link.h>
 #include "jni_loader.h"
 #include <string>
-
+#include "elf_hook.h"
 
 
 //------------------- 符号表 .symtab和.dynsym --------------------------------
@@ -104,12 +104,6 @@ typedef struct {
 #define ELF_R_TYPE(info) ELF32_R_TYPE(info)
 #endif
 
-
-struct hook_symbol {
-    const char *so_name;
-    const char *symbol_name;
-    void *new_value;
-};
 
 ///**
 // * 通过符号名称返回目标的索引

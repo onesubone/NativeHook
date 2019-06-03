@@ -22,12 +22,12 @@
 #define HOOK_ERR -1
 #define LOOK_UP_DYNAMIC_SEGMENT_ERR -2
 
+using namespace std;
+
 // Android uses RELA for aarch64 and x86_64. mips64 still uses REL.
 #if defined(__aarch64__) || defined(__x86_64__)
 #define USE_RELA 1
 #endif
-
-using namespace std;
 
 typedef void (*linker_function_t)();
 
@@ -54,10 +54,13 @@ typedef struct {
     ElfW(Half) dlpi_phnum; // count of program header table (PHT)
 } _dl_phdr_info;
 
+/**
+ * so中的每个segment的
+ */
 struct segment_attr {
-    ElfW(Addr) start;
-    ElfW(Addr) end;
-    ElfW(Word) flag;
+    ElfW(Addr) start; // 当前segment对应的起始偏移地址(相对于so的加载地址，bias_address)
+    ElfW(Addr) end; // 当前segment对应的终点偏移地址(相对于so的加载地址，bias_address)
+    ElfW(Word) flag; // 当前segment的flag
     bool in_this_segment(ElfW(Addr) addr) {
         return addr >= start && addr <= end;
     }
@@ -155,8 +158,13 @@ public:
     uint32_t segment_attr_count;
 };
 
+typedef int (*soinfo_callback)(struct soinfo*);
+extern "C" void travel_all_loaded_so(soinfo_callback callback);
+
+// read soinfo struct from int dl_iterate_phdr(int (*__callback)(struct dl_phdr_info*, size_t, void*), void* __data);
 extern "C" soinfo *read_from_dl_phdr_info(struct dl_phdr_info *info);
+// read soinfo struct from /proc/self/maps
+extern "C" soinfo *read_from_proc(const char *so_name);
+extern "C" segment_attr *lookup_segment_attr(soinfo *elf_ptr, ElfW(Addr) looked_addr);
 extern "C" void print_android_elf(soinfo *si);
-extern "C" segment_attr *lookup_segment_attr(soinfo *elf_ptr, ElfW(Addr) addr);
-//extern "C" void lookup_soinfo(const char *so_name, lookup_result *result);
 #endif //RUBICK_ELF_PARSER_H

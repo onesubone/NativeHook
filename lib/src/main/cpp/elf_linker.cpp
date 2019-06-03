@@ -54,9 +54,9 @@ static bool is_symbol_global_and_defined(soinfo *si, const ElfW(Sym) *s) {
  * 但是具体可访问的需要还需要确认！！！
  * 详见https://r00tk1ts.github.io/2017/08/24/GNU%20Hash%20ELF%20Sections/#Dynamic-Section-%E9%9C%80%E6%B1%82
  *
- * @see gnu_lookup_inaccessible
+ * @see _gnu_lookup_hided
  */
-static ElfW(Sym) *_gnu_lookup_accessible(soinfo *si, const char *symbol_name, uint32_t *idx) {
+static ElfW(Sym) *_gnu_lookup_public(soinfo *si, const char *symbol_name, uint32_t *idx) {
     gnu_hash_table *hash_table = si->gnu_hash_ptr;
     if (!hash_table) return nullptr;
     uint32_t hash = gnu_hash(symbol_name);
@@ -88,9 +88,9 @@ static ElfW(Sym) *_gnu_lookup_accessible(soinfo *si, const char *symbol_name, ui
 
 /*
  * 通过gnu hash无法查询的模块可以通过此方法进行查询，只能查询无法访问的点
- * @see gnu_lookup_accessible
+ * @see _gnu_lookup_public
  */
-static ElfW(Sym) *_gnu_lookup_inaccessible(soinfo *si, const char *symbol_name, uint32_t *idx) {
+static ElfW(Sym) *_gnu_lookup_hided(soinfo *si, const char *symbol_name, uint32_t *idx) {
     gnu_hash_table *hash_table = si->gnu_hash_ptr;
     if (!hash_table) return nullptr;
     for (uint32_t i = 0; i < hash_table->symndx; i++) {
@@ -107,28 +107,22 @@ static ElfW(Sym) *_elf_lookup(soinfo *si, const char *symbol_name, uint32_t *idx
     elf_hash_table *hash_table = si->elf_hash_ptr;
     if (!hash_table) return nullptr;
     uint32_t hash = elf_hash(symbol_name);
-//    LOGD("SEARCH %s in %s@%p h=%x(elf) %zd", symbol_name, (char *) si->so_name,
-//         reinterpret_cast<void *>(si->bias_addr), hash, hash % hash_table->nbucket);
     for (uint32_t n = hash_table->bucket[hash % hash_table->nbucket]; n != 0; n = hash_table->chain[n]) {
         ElfW(Sym) *s = si->symtab_ + n;
         if (strcmp(si->get_string(s->st_name), symbol_name) == 0) {
-//            LOGD("FOUND %s in %s (%p) %zd", symbol_name, (char *) si->so_name, reinterpret_cast<void *>(s->st_value),
-//                 static_cast<size_t>(s->st_size));
             if (idx) *idx = n;
             return s;
         }
     }
-//    LOGD("NOT FOUND %s in %s@%p %x %zd",
-//         symbol_name, si->so_name, reinterpret_cast<void *>(si->bias_addr), hash, hash % hash_table->nbucket);
     return nullptr;
 }
 
 
 ElfW(Sym) *soinfo::gnu_lookup(const char *symbol_name, uint32_t *idx) {
     if (!is_gnu_hash()) return nullptr;
-    ElfW(Sym) *res = _gnu_lookup_accessible(this, symbol_name, idx);
+    ElfW(Sym) *res = _gnu_lookup_public(this, symbol_name, idx);
     if (res) return res;
-    return _gnu_lookup_inaccessible(this, symbol_name, idx);
+    return _gnu_lookup_hided(this, symbol_name, idx);
 }
 
 ElfW(Sym) *soinfo::elf_lookup(const char *symbol_name, uint32_t *idx) {
@@ -147,11 +141,26 @@ bool soinfo::is_gnu_hash() const {
     return gnu_hash_ptr != nullptr;
 }
 
-const char *soinfo::get_string(ElfW(Word) index) const {
-    return strtab_ + index;
+const char *soinfo::get_string(ElfW(Word) offset) const {
+    return strtab_ + offset;
 }
 
 /**
+ * 通过读取.dynamic段获取如下关键(非全部)信息：
+ * 1. symtab，表示".dynsym"的地址
+ * 2. strtab，表示链接字符串".dynstr"的地址
+ * 3. strsz，表示链接字符串的长度
+ * 4. hash，动态链接哈希表的地址，".hash"的地址
+ * 5. soName，本共享对象的"SO-NAME"
+ * 6. RPath，动态链接共享对象搜索路径
+ * 7. INIT, 初始化搜索代码地址
+ * 8. FINIT, 结束代码地址
+ * 9. NEED, 依赖的共享文件，d_ptr表示所以来的共享文件名
+ * 10. REL/RELA, 动态链接重定位表地址
+ * 11. RELENT/RELAENT 动态重定位表数量
+ * 封装成soinfo的类型，具体可以参见Android Linker.cpp源码
+ *
+ * @see https://android.googlesource.com/platform/bionic/+/refs/tags/android-vts-9.0_r9/linker/linker.cpp
  * decode all ElfW(Dyn) info
  * @param name so name
  * @param load_bias so library bias offset in virtual memory
@@ -163,7 +172,7 @@ const char *soinfo::get_string(ElfW(Word) index) const {
 bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynamic_ptr, ElfW(Dyn) *dynamic_end_ptr) {
     this->bias_addr = load_bias;
     dynamic_ = dynamic_ptr;
-    dynamic_ = dynamic_end_ptr;
+    dynamic_end_ = dynamic_end_ptr;
     for (ElfW(Dyn) *d = dynamic_ptr; d < dynamic_end_ptr && d->d_tag != DT_NULL; ++d) { // 遍历dynamic中所有的项
         LOGD("Dynamic Segment find tag: = %p \td[0](tag) = %p \td[1](val) = %p",
              d, reinterpret_cast<void *>(d->d_tag), reinterpret_cast<void *>(d->d_un.d_val));
@@ -232,10 +241,10 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
                     return false;
                 }
 #else
-                if (d->d_un.d_val != DT_REL) {
-                    LOGE("unsupported DT_PLTREL in \"%s\"; expected DT_REL", name);
-                    return false;
-                }
+            if (d->d_un.d_val != DT_REL) {
+                LOGE("unsupported DT_PLTREL in \"%s\"; expected DT_REL", name);
+                return false;
+            }
 #endif
                 break;
             case DT_JMPREL:
@@ -244,7 +253,7 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
                 // the runtime linker to ignore these entries when the object is loaded with lazy binding enabled.
                 // This element requires the DT_PLTRELSZ and DT_PLTREL elements also be present.
 #if defined(USE_RELA)
-                plt_rela_ = reinterpret_cast<ElfW(Rela)*>(load_bias + d->d_un.d_ptr);
+                plt_rela_ = reinterpret_cast<ElfW(Rela) *>(load_bias + d->d_un.d_ptr);
 #else
                 plt_rel_ = reinterpret_cast<ElfW(Rel) *>(load_bias + d->d_un.d_ptr);
 #endif
@@ -401,10 +410,10 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
             case DT_TEXTREL:
 #if defined(__LP64__)
                 LOGE("text relocations (DT_TEXTREL) found in 64-bit ELF file \"%s\"", name);
-        return false;
+                return false;
 #else
-                has_text_relocations = true;
-                break;
+            has_text_relocations = true;
+            break;
 #endif
             case DT_SYMBOLIC:
                 // Indicates the object contains symbolic bindings that were applied during its link-edit.
@@ -424,7 +433,7 @@ bool soinfo::initialize(const char *name, ElfW(Addr) load_bias, ElfW(Dyn) *dynam
                 if (d->d_un.d_val & DF_TEXTREL) {
 #if defined(__LP64__)
                     LOGE("text relocations (DF_TEXTREL) found in 64-bit ELF file \"%s\"", name);
-          return false;
+                    return false;
 #else
                     has_text_relocations = true;
 #endif
@@ -483,11 +492,11 @@ static inline const ElfW(Phdr) *lookup_dynamic_segment(struct dl_phdr_info *info
     return nullptr;
 }
 
-extern "C" segment_attr *lookup_segment_attr(soinfo *elf_ptr, ElfW(Addr) addr) {
+extern "C" segment_attr *lookup_segment_attr(soinfo *elf_ptr, ElfW(Addr) looked_addr) {
     for (int i = 0; i < elf_ptr->segment_attr_count; ++i) {
         segment_attr *attr = elf_ptr->segment_attr_list[i];
         if (!attr) continue;
-        if (attr->in_this_segment(addr)) {
+        if (attr->in_this_segment(looked_addr)) {
             return attr;
         }
     }
@@ -530,20 +539,32 @@ soinfo *read_from_dl_phdr_info(struct dl_phdr_info *info) {
     return elf_ptr;
 }
 
+
+extern "C" soinfo *read_from_proc(const char *so_name) {
+    // read soinfo struct from /proc/self/maps
+    return nullptr;
+}
+
+extern "C" int
+dl_iterate_phdr(int (*__callback)(struct dl_phdr_info *, size_t, void *), void *__data)__attribute__ ((weak));
+
+extern "C" void travel_all_loaded_so(soinfo_callback callback) {
+    if(!callback) return ;
+}
 void print_android_elf(soinfo *si) {
-    LOGI("----------------%s", "--------------------------------------------------------------------------------");
-    LOGI("----so name %s", (char *) si->strtab_ + si->so_name);
-    LOGI("----bias addr %10p", si->bias_addr);
-    LOGI("----dynamic addr %10p", si->dynamic_);
-    LOGI("----rel.plt count %u", si->plt_rel_count_);
-    LOGI("----rel count %u", si->rel_count_);
-    LOGI("----rela count %u", si->rela_count_);
-    LOGI("----rela.plt count %u", si->plt_rela_count_);
-    LOGI("----android relocs size %u", si->android_relocs_size_);
+    LOGD("----------------%s", "--------------------------------------------------------------------------------");
+    LOGD("----so name %s", (char *) si->strtab_ + si->so_name);
+    LOGD("----bias addr %10p", si->bias_addr);
+    LOGD("----dynamic addr %10p", si->dynamic_);
+    LOGD("----rel.plt count %u", si->plt_rel_count_);
+    LOGD("----rel count %u", si->rel_count_);
+    LOGD("----rela count %u", si->rela_count_);
+    LOGD("----rela.plt count %u", si->plt_rela_count_);
+    LOGD("----android relocs size %u", si->android_relocs_size_);
     for (auto itor = si->needed_lib.begin(); itor != si->needed_lib.end(); ++itor) {
-        LOGI("----Needby %s", si->strtab_ + *itor);
+        LOGD("----Needby %s", si->strtab_ + *itor);
     }
-    LOGI("----------------%s", "--------------------------------------------------------------------------------");
+    LOGD("----------------%s", "--------------------------------------------------------------------------------");
     return;
 }
 
