@@ -364,7 +364,7 @@ static void hook(JNIEnv *env, jobject jObj) {
     sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", free));
     sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", free));
 
-    add_hook(&sym_list);
+    add_hook(sym_list);
 }
 
 

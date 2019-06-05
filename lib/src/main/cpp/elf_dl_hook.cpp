@@ -12,6 +12,7 @@
 #include <string>
 #include <unistd.h>
 
+using namespace std;
 
 static int do_hook(soinfo *si, const char *so_name, ElfW(Addr) addr, void *newValue, void **old_addr_ptr) {
     void **relocate_ptr = (void **) addr;
@@ -172,31 +173,24 @@ static std::vector<hook_symbol *> *filter_hook_symbols(const char *so_name_or_pa
     return res;
 }
 
-static int callback(struct dl_phdr_info *info, size_t size, void *data) {
-    LOGD ("so name=%s@%10p (%d segments) size=%d\n", info->dlpi_name, info->dlpi_addr, info->dlpi_phnum, size);
-    std::vector<hook_symbol *> *all = (std::vector<hook_symbol *> *) (data);
-    if (!all || all->empty()) {
+int add_hook(std::vector<hook_symbol *> &all) {
+    if (all.empty()) {
         LOGI("%s", "Not Found Hook_Symbol, do nothing!");
         return 0;
     }
-    // 所有命中本so的需要Hook的符号
-    std::vector<hook_symbol *> *hook_symbols = filter_hook_symbols(info->dlpi_name, all);
-    if (!hook_symbols || hook_symbols->empty()) return 0;
-    soinfo *si = read_from_dl_phdr_info(info);
-    if (!si) {
-        LOGE("read soinfo from dl_phdr_info failed %s", info->dlpi_name);
-        return 0;
-    }
-    for (std::vector<hook_symbol *>::iterator itr = hook_symbols->begin(); itr != hook_symbols->end(); ++itr) {
-        hook_spec(si, (*itr)->symbol_name, (*itr)->new_value, nullptr);
-    }
-    delete hook_symbols;
-    return 0;
-}
 
-int add_hook(std::vector<hook_symbol *> *all) {
-    if (dl_iterate_phdr) {
-        dl_iterate_phdr(callback, all);
-    }
+    auto travel_si_callback = [&](std::unique_ptr<soinfo> si_p) {
+        if (!si_p) {
+            return;
+        }
+        // 所有命中本so的需要Hook的符号
+        std::vector<hook_symbol *> *symbols = filter_hook_symbols((char *) (si_p->strtab_ + si_p->so_name), &all);
+        if (!symbols || symbols->empty()) return;
+        for (std::vector<hook_symbol *>::iterator itr = symbols->begin(); itr != symbols->end(); ++itr) {
+            hook_spec(&(*si_p), (*itr)->symbol_name, (*itr)->new_value, nullptr);
+        }
+        delete symbols;
+    };
+    travel_all_loaded_so(travel_si_callback);
     return 0;
 }

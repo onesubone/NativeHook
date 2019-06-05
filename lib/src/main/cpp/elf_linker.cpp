@@ -7,9 +7,9 @@
 #include <elf.h>
 #include <linux/elf.h>
 #include <vector>
+#include <functional>
 
-extern "C" int
-dl_iterate_phdr(int (*__callback)(struct dl_phdr_info *, size_t, void *), void *__data)__attribute__ ((weak));
+using namespace std;
 
 static uint32_t elf_hash(const char *sym_name) {
     const unsigned char *name = (const unsigned char *) sym_name;
@@ -40,7 +40,7 @@ static bool is_symbol_global_and_defined(soinfo *si, const ElfW(Sym) *s) {
         // 在包含该符号定义的目标文件以外不可见，相同名称的局部符号可以存在于多个文件中，互不影响。
         // 在每个符号表中，所有具有 STB_LOCAL 绑定的符号都优先于弱符号和全局符号
         LOGW("unexpected ST_BIND value: %d for '%s' in '%s'",
-             (ELF_ST_BIND(s->st_info)), si->get_string(s->st_name), si->so_name);
+             (ELF_ST_BIND(s->st_info)), si->get_string(s->st_name), si->bias_addr + si->so_name);
     }
     return false;
 }
@@ -474,6 +474,26 @@ soinfo::soinfo(const char *name) {
     memset(this, 0, sizeof(*this));
 }
 
+soinfo::~soinfo() {
+    if (elf_hash_ptr) {
+        delete elf_hash_ptr;
+        elf_hash_ptr = nullptr;
+    }
+    if (gnu_hash_ptr) {
+        delete gnu_hash_ptr;
+        gnu_hash_ptr = nullptr;
+    }
+
+    if (segment_attr_list) {
+        for (uint32_t i = 0; i < segment_attr_count; ++i) {
+            delete segment_attr_list[i];
+        }
+
+        delete segment_attr_list;
+        segment_attr_list = nullptr;
+    }
+}
+
 /**
  * 从所有的program header中查找.dynamic segment。一个so中只能有一个.dynamic segment, 找到指定的ElfW(Phdr)地址
  * @param info so中的所有program header集合
@@ -503,26 +523,24 @@ extern "C" segment_attr *lookup_segment_attr(soinfo *elf_ptr, ElfW(Addr) looked_
     return nullptr;
 }
 
-soinfo *read_from_dl_phdr_info(struct dl_phdr_info *info) {
-    const ElfW(Phdr) *dynamic_segment = lookup_dynamic_segment(info);
+extern "C" std::unique_ptr<soinfo> read_from_dl_phdr_info(struct dl_phdr_info *info) {
+    const ElfW(Phdr) *dynamic_segment = lookup_dynamic_segment(info); // search .dynamic 段
     LOGD("library PHT(program header table) address=%10p", dynamic_segment);
-    if (!dynamic_segment) {
-        return nullptr;
-    }
+    if (!dynamic_segment) return nullptr;
     ElfW(Dyn) *dynamic_ptr = (ElfW(Dyn) *) (info->dlpi_addr + dynamic_segment->p_paddr);
-    int count = dynamic_segment->p_memsz / sizeof(ElfW(Dyn));
+    unsigned count = static_cast<unsigned int>(dynamic_segment->p_memsz / sizeof(ElfW(Dyn)));
     ElfW(Dyn) *dynamic_end_ptr = dynamic_ptr + count;
     LOGD(".dynamic segment address range:[%10p-%10p], count %u", dynamic_ptr, dynamic_end_ptr, count);
-    if (!dynamic_ptr) {
-        return nullptr;
-    }
-    soinfo *elf_ptr = new soinfo(info->dlpi_name);
-    memset(elf_ptr, '\0', sizeof(soinfo));
-    if (!elf_ptr->initialize(info->dlpi_name, info->dlpi_addr, dynamic_ptr, dynamic_end_ptr)) {
+    if (!dynamic_ptr || !dynamic_end_ptr) return nullptr;
+    soinfo *si_p = new soinfo(info->dlpi_name);
+    memset(si_p, 0, sizeof(soinfo));
+    std::unique_ptr<soinfo> soinfo_ptr(si_p);
+    if (!(*soinfo_ptr).initialize(info->dlpi_name, info->dlpi_addr, dynamic_ptr, dynamic_end_ptr)) {
         return nullptr;
     }
     typedef segment_attr *SAP;
     SAP *segment_attr_list = new SAP[info->dlpi_phnum];
+    memset(segment_attr_list, 0, sizeof(SAP) * info->dlpi_phnum);
     for (int i = 0; i < info->dlpi_phnum; i++) {
         const ElfW(Phdr) *segment = info->dlpi_phdr + i;
         if (!segment) continue;
@@ -531,26 +549,52 @@ soinfo *read_from_dl_phdr_info(struct dl_phdr_info *info) {
         attr->end = attr->start + segment->p_memsz - 1;
         attr->flag = segment->p_flags;
         segment_attr_list[i] = attr;
-        LOGI("%d [%10p-%10p],p_flags=%d", segment->p_type, attr->start, attr->end, segment->p_flags);
+        LOGD("so %s, type %d, addr[%10p-%10p], p_flags=%d", info->dlpi_name, segment->p_type, attr->start, attr->end,
+             segment->p_flags);
     }
-    elf_ptr->segment_attr_list = segment_attr_list;
-    elf_ptr->segment_attr_count = info->dlpi_phnum;
-    print_android_elf(elf_ptr);
-    return elf_ptr;
+    (*soinfo_ptr).segment_attr_list = segment_attr_list;
+    (*soinfo_ptr).segment_attr_count = info->dlpi_phnum;
+    print_android_elf(&(*soinfo_ptr));
+    return std::move(soinfo_ptr);
 }
 
 
-extern "C" soinfo *read_from_proc(const char *so_name) {
+extern "C" std::unique_ptr<soinfo> read_from_proc(const char *so_name) {
     // read soinfo struct from /proc/self/maps
+
+
+
+
+
+
+
+
+
     return nullptr;
 }
 
 extern "C" int
 dl_iterate_phdr(int (*__callback)(struct dl_phdr_info *, size_t, void *), void *__data)__attribute__ ((weak));
 
-extern "C" void travel_all_loaded_so(soinfo_callback callback) {
-    if(!callback) return ;
+static int dl_callback(struct dl_phdr_info *info, size_t size, void *data) {
+    LOGD ("so name=%s@%10p (%d segments) size=%d\n", info->dlpi_name, info->dlpi_addr, info->dlpi_phnum, size);
+    std::unique_ptr<soinfo> uniquePtr = read_from_dl_phdr_info(info);
+    if (!uniquePtr) {
+        LOGE("read soinfo from dl_phdr_info failed %s", info->dlpi_name);
+        return 0;
+    }
+    std::function<void(std::unique_ptr<soinfo>)> *callback = static_cast<function<void(unique_ptr<soinfo>)> *>(data);
+    (*callback)(std::move(uniquePtr));
+    return 0;
 }
+
+extern "C" void travel_all_loaded_so(std::function<void(std::unique_ptr<soinfo>)> callback) {
+    if (dl_iterate_phdr) {
+        dl_iterate_phdr(dl_callback, &callback);
+        return;
+    }
+}
+
 void print_android_elf(soinfo *si) {
     LOGD("----------------%s", "--------------------------------------------------------------------------------");
     LOGD("----so name %s", (char *) si->strtab_ + si->so_name);

@@ -115,6 +115,6 @@ typedef struct {
 //ElfW(Sym) *find_symbol_by_name(struct soinfo *elf, const char *symbol, uint32_t *idx);
 
 //int add_hook(const char *soname, const char *symbol, void *newValue, void **old_addr_ptr) throw(std::string);
-int add_hook(std::vector<hook_symbol *> *all);
+int add_hook(std::vector<hook_symbol *> &all);
 
 #endif //RUBICK_ELF_HOOK_H

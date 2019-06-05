@@ -11,6 +11,7 @@
 #include <linux/elf.h>
 #include <link.h>
 #include "jni_loader.h"
+#include <functional>
 
 #define FLAG_LINKED           0x00000001
 #define FLAG_EXE              0x00000004 // The main executable
@@ -96,9 +97,10 @@ typedef struct {
 class soinfo {
 public:
     soinfo(const char *name);
+    ~soinfo();
 
     ElfW(Addr) bias_addr;
-    ElfW(Addr) so_name; // 实际so name起始地址：elf_ptr->strtab + elf_ptr->so_name
+    ElfW(Addr) so_name; // so name的偏移地址，实际地址为elf_ptr->strtab + elf_ptr->so_name
     /* 动态库的dynamic segment的起始地址，真实地址需要增加动态库的偏移地址 */
     ElfW(Dyn) *dynamic_;
     ElfW(Dyn) *dynamic_end_;
@@ -158,13 +160,17 @@ public:
     uint32_t segment_attr_count;
 };
 
-typedef int (*soinfo_callback)(struct soinfo*);
-extern "C" void travel_all_loaded_so(soinfo_callback callback);
+extern "C" void travel_all_loaded_so(std::function<void(std::unique_ptr<struct soinfo>)>);
 
-// read soinfo struct from int dl_iterate_phdr(int (*__callback)(struct dl_phdr_info*, size_t, void*), void* __data);
-extern "C" soinfo *read_from_dl_phdr_info(struct dl_phdr_info *info);
-// read soinfo struct from /proc/self/maps
-extern "C" soinfo *read_from_proc(const char *so_name);
+/**
+ * read soinfo struct from int dl_iterate_phdr(int (*__callback)(struct dl_phdr_info*, size_t, void*), void* __data);
+ */
+extern "C" std::unique_ptr<soinfo> read_from_dl_phdr_info(struct dl_phdr_info *info);
+
+/**
+ * read soinfo struct from /proc/self/maps
+ */
+extern "C" std::unique_ptr<soinfo> read_from_proc(const char *so_name);
 extern "C" segment_attr *lookup_segment_attr(soinfo *elf_ptr, ElfW(Addr) looked_addr);
 extern "C" void print_android_elf(soinfo *si);
 #endif //RUBICK_ELF_PARSER_H
