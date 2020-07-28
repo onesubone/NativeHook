@@ -4,15 +4,30 @@ android {
     compileSdkVersion 28
 
     defaultConfig {
-        applicationId "eap.com.nh.demo"
+        applicationId "com.eap.assemblyinndk"
         minSdkVersion 14
         targetSdkVersion 28
         versionCode 1
         versionName "1.0"
 
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++14 -frtti -fexceptions"
+                arguments '-DANDROID_STL=c++_shared'
+                arguments "-DANDROID_ARM_NEON=TRUE"
+            }
+        }
 
-        ndk { abiFilters "arm64-v8a" }
+//        ndk { abiFilters "arm64-v8a", "armeabi-v7a" }
+        ndk { abiFilters "armeabi-v7a" }
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+        }
     }
 
     buildTypes {
@@ -21,22 +36,13 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
-    sourceSets {
-        main {
-            jniLibs.srcDirs = ['libs']
-        }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
+
 }
 
 dependencies {
-    implementation fileTree(include: ['*.jar'], dir: 'libs')
-    implementation 'com.android.support.constraint:constraint-layout:1.1.3'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
-    implementation project(':plt_lib')
 }

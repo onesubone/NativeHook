@@ -1,1 +1,1 @@
-include ':app', ':sympickapp', ':lib', ':demo'
+include ':app', ':sympickapp', ':plt_lib', ':demo', ':simpleso', ':assemblyInNdk'

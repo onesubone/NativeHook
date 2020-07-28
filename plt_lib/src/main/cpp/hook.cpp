@@ -209,12 +209,8 @@ void printEnviron(char *tag) {
 }
 char *new_environ[] = {"Hello ", "World!", nullptr};
 
-// ##是一个链接符号，用于把参数连在一起
-// #转化成一个字符串
+// ##是一个链接符号，用于把参数连在一起；#转化成一个字符串
 #define NEW_HOOK_SYM(N, S) new hook_symbol{N, #S, (void *)(my_##S)}
-//#define DEFINEHOOK( SONAME, NAME,) \
-//    typedef RET_TYPE (* NAME ## _t)ARGS; \
-//    RET_TYPE hook_ ## NAME ARGS
 
 static void hook(JNIEnv *env, jobject jObj) {
     pthread_rwlock_init(&rwlock, nullptr);
@@ -364,9 +360,21 @@ static void hook(JNIEnv *env, jobject jObj) {
     sym_list.push_back(NEW_HOOK_SYM("libimg_utils.so", free));
     sym_list.push_back(NEW_HOOK_SYM("libnativebridge.so", free));
 
+    sym_list.push_back(NEW_HOOK_SYM("libcronet.72.0.3626.0.so", malloc));
+    sym_list.push_back(NEW_HOOK_SYM("libcronet.72.0.3626.0.so", free));
     add_hook(sym_list);
 }
 
+void __attribute__((constructor)) __on_so_init__() {
+    // 在JNI_OnLoad方法前调用，可以在这里生成hook文件
+    LOGI("NativeHook1 %s", "__attribute__((constructor)) __on_so_init__");
+    hook(nullptr, nullptr);
+}
+
+void __attribute__((destructor)) __on_so_finit__() {
+    // so被卸载时触发
+    // TODO, unhook
+}
 
 // 回调函数 在这里面注册函数
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
@@ -376,11 +384,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         return JNI_ERR;
     }
     assert(env != NULL);
-    hook(env, nullptr);
-//    registerMethod(env, "com/eap/nh/lib/NativeHook", "printLeakedMem", "(Ljava/lang/String;)V",
-//                   (void *) (print_leaked_mem));
+//    hook(env, nullptr);
 //    registerMethod(env, "com/eap/nh/lib/NativeHook", "printDynamicLib", "(Ljava/lang/String;)V", (void *) (printDynamicLib));
     //返回jni 的版本
+    LOGI("NativeHook1 %s", "JNI_OnLoad");
     return JNI_VERSION_1_6;
 }
 
